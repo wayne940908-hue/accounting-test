@@ -1,0 +1,120 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Safety Net: default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Secure common helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Validation blueprints for Transaction schema
+    function isValidTransaction(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.datetime is string && data.datetime.size() <= 64
+        && data.amount is number
+        && (data.type == 'income' || data.type == 'expense')
+        && data.category is string && data.category.size() <= 128
+        && data.subcategory is string && data.subcategory.size() <= 128
+        && data.size() <= 9
+        && (data.get('note', '') is string && data.get('note', '').size() <= 1000)
+        && (data.get('isRecurring', true) is bool)
+        && (data.get('recurringRuleId', '') is string && data.get('recurringRuleId', '').size() <= 128);
+    }
+
+    // Validation blueprints for RecurringRule schema
+    function isValidRecurringRule(data) {
+      return data.id is string && data.id.size() <= 128
+        && data.name is string && data.name.size() <= 200
+        && data.amount is number
+        && (data.type == 'income' || data.type == 'expense')
+        && data.category is string && data.category.size() <= 128
+        && data.subcategory is string && data.subcategory.size() <= 128
+        && data.dayOfMonth is int && data.dayOfMonth >= 1 && data.dayOfMonth <= 31
+        && data.isActive is bool
+        && data.size() <= 10
+        && (data.get('lastTriggeredMonth', '') is string && data.get('lastTriggeredMonth', '').size() <= 32)
+        && (data.get('note', '') is string && data.get('note', '').size() <= 1000);
+    }
+
+    // Secure user sandbox
+    match /users/{userId} {
+      // Root user sandbox configuration
+      allow read, write: if isOwner(userId) && isValidId(userId);
+
+      // Transactions subcollection
+      match /transactions/{transactionId} {
+        allow get: if isOwner(userId) && isValidId(transactionId);
+        allow list: if isOwner(userId);
+        
+        allow create: if isOwner(userId) 
+          && isValidId(transactionId) 
+          && isValidTransaction(incoming())
+          && incoming().id == transactionId;
+          
+        allow update: if isOwner(userId) 
+          && isValidId(transactionId) 
+          && isValidTransaction(incoming())
+          && (
+            // Ensure core fields are immutable after creation
+            incoming().id == existing().id &&
+            // Named allowed updates to prevent ghost property injection
+            incoming().diff(existing()).affectedKeys().hasOnly(['amount', 'category', 'subcategory', 'note', 'datetime', 'isRecurring', 'recurringRuleId'])
+          );
+          
+        allow delete: if isOwner(userId) && isValidId(transactionId);
+      }
+
+      // Recurring rules subcollection
+      match /recurringRules/{ruleId} {
+        allow get: if isOwner(userId) && isValidId(ruleId);
+        allow list: if isOwner(userId);
+        
+        allow create: if isOwner(userId) 
+          && isValidId(ruleId) 
+          && isValidRecurringRule(incoming())
+          && incoming().id == ruleId;
+          
+        allow update: if isOwner(userId) 
+          && isValidId(ruleId) 
+          && isValidRecurringRule(incoming())
+          && (
+            // Ensure core fields are immutable after creation
+            incoming().id == existing().id &&
+            // Explicitly allow edits on specific fields
+            incoming().diff(existing()).affectedKeys().hasOnly(['name', 'amount', 'type', 'category', 'subcategory', 'dayOfMonth', 'isActive', 'lastTriggeredMonth', 'note'])
+          );
+          
+        allow delete: if isOwner(userId) && isValidId(ruleId);
+      }
+
+      // Debts subcollection
+      match /debts/{debtId} {
+        allow get: if isOwner(userId) && isValidId(debtId);
+        allow list: if isOwner(userId);
+        
+        allow create, update: if isOwner(userId) && isValidId(debtId);
+        allow delete: if isOwner(userId) && isValidId(debtId);
+      }
+    }
+  }
+}

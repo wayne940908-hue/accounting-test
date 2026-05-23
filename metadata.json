@@ -1,0 +1,6 @@
+{
+  "name": "記帳",
+  "description": "極簡設計風格的記帳與自動定期代扣排程管理軟體。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

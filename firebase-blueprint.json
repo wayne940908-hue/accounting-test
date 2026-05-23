@@ -1,0 +1,49 @@
+{
+  "entities": {
+    "Transaction": {
+      "title": "Transaction",
+      "description": "A financial ledger transaction representing income or expense.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique transaction serial ID." },
+        "datetime": { "type": "string", "format": "date-time", "description": "The date and time of the transaction." },
+        "amount": { "type": "number", "description": "The transaction amount. Positive for income, negative for expense." },
+        "type": { "type": "string", "enum": ["income", "expense"], "description": "Whether the transaction is an income or an expense." },
+        "category": { "type": "string", "description": "Main category (e.g., 餐飲, 交通, 娛樂, 居家, 醫療, 數位服務, 其他)." },
+        "subcategory": { "type": "string", "description": "Subcategory (e.g., 早餐, 飲料, 大餐, etc.)." },
+        "note": { "type": "string", "description": "Optional notes or comments." },
+        "isRecurring": { "type": "boolean", "description": "Whether this transaction was automatically generated." },
+        "recurringRuleId": { "type": "string", "description": "Optional reference to the recurring template rule." }
+      },
+      "required": ["id", "datetime", "amount", "type", "category", "subcategory"]
+    },
+    "RecurringRule": {
+      "title": "RecurringRule",
+      "description": "A monthly template rule for automatic recurring transactions.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique rule ID." },
+        "name": { "type": "string", "description": "Name of the monthly subscription or recurring item." },
+        "amount": { "type": "number", "description": "Monthly recurring amount." },
+        "type": { "type": "string", "enum": ["income", "expense"], "description": "Whether it represents income or expense." },
+        "category": { "type": "string", "description": "Main category." },
+        "subcategory": { "type": "string", "description": "Subcategory." },
+        "dayOfMonth": { "type": "number", "description": "Day of the month to trigger (1-31)." },
+        "isActive": { "type": "boolean", "description": "Whether the template rule is active." },
+        "lastTriggeredMonth": { "type": "string", "description": "Year and month of last execution, e.g., '2026-05'." },
+        "note": { "type": "string", "description": "Optional notes." }
+      },
+      "required": ["id", "name", "amount", "type", "category", "subcategory", "dayOfMonth", "isActive"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "User ledger transactions."
+    },
+    "/users/{userId}/recurringRules/{ruleId}": {
+      "schema": "RecurringRule",
+      "description": "User templates for automatic monthly income/expenses."
+    }
+  }
+}
